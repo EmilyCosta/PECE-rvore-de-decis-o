@@ -1,24 +1,57 @@
-from flask import Flask, request, jsonify
-import joblib
+from fastapi import FastAPI, File
+from pydantic import BaseModel
+import xgboost as xgb
 import numpy as np
+import joblib
+import warnings
+
 import base64
 from PIL import Image
 import io
 
-app = Flask(__name__)
+warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
-# Carregar o modelo treinado
-model = joblib.load("models/model.pkl")
+app = FastAPI()
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.get_json()
-    img_data = base64.b64decode(data['image'])
-    img = Image.open(io.BytesIO(img_data)).convert('L')
+# Definição dos tipos de dados
+class PredictionResponse(BaseModel):
+    prediction: float
+
+class ImageRequest(BaseModel):
+    image: str
+
+# Carregamento do Modelo de Machine Learning
+def load_model():
+    global xgb_model_carregado
+    xgb_model_carregado = joblib.load("models/model.pkl")
+
+# Inicialização da Aplicação
+@app.on_event("startup")
+async def startup_event():
+    load_model()
+
+# Definição do endpoint /predict que aceita as requisições via POST
+# Esse endpoint que irá receber a imagem em base64 e irá convertê-la para fazer inferência
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(request: ImageRequest):
+    # Processamento da Imagem
+    img_bytes = base64.b64decode(request.image)
+    img = Image.open(io.BytesIO(img_bytes))
     img = img.resize((8, 8))
-    img_array = np.array(img).reshape(1, -1)
-    prediction = model.predict(img_array)
-    return jsonify({'prediction': int(prediction[0])})
+    img_array = np.array(img)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    # Converter a imagem para escala de cinza
+    img_array = np.dot(img_array[...,:3], [0.2989, 0.5870, 0.1140])
+
+    img_array = img_array.reshape(1, -1)
+
+    # Predição do Modelo de Machine Learning
+    prediction = xgb_model_carregado.predict(img_array)
+
+    return {"prediction": prediction}
+
+# Endpoint de Healthcheck
+@app.get("/healthcheck")
+async def healthcheck():
+    # retorna um objeto com um campo status com valor "ok" se a aplicação estiver funcionando corretamente
+    return {"status": "ok"}
