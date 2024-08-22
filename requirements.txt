@@ -1,6 +1,8 @@
-flask
 fastapi
 uvicorn
 scikit-learn
 xgboost
 matplotlib
+PIL
+joblib
+numpy
