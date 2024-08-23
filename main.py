@@ -22,8 +22,8 @@ class ImageRequest(BaseModel):
 
 # Carregamento do Modelo de Machine Learning
 def load_model():
-    global xgb_model_carregado
-    xgb_model_carregado = joblib.load("models/model.pkl")
+    global model_carregado
+    model_carregado = joblib.load("models/model.pkl")
 
 # Inicialização da Aplicação
 @app.on_event("startup")
@@ -46,7 +46,9 @@ async def predict(request: ImageRequest):
     img_array = img_array.reshape(1, -1)
 
     # Predição do Modelo de Machine Learning
-    prediction = xgb_model_carregado.predict(img_array)
+    prediction = model_carregado.predict(img_array)
+
+    print(prediction)
 
     return {"prediction": prediction}
 
